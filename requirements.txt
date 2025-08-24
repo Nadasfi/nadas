@@ -1,0 +1,61 @@
+# Nadas.fi Backend Dependencies 
+# Core Framework
+fastapi>=0.95.0
+uvicorn[standard]>=0.20.0
+
+# Database & ORM
+sqlalchemy>=2.0.0
+alembic>=1.10.0
+asyncpg>=0.27.0
+psycopg2-binary>=2.9.0
+
+# Supabase Integration
+supabase>=2.0.0
+postgrest>=0.16.0
+
+# Caching & Background Tasks
+redis>=6.0.0
+celery>=5.3.0
+
+# Authentication & Security
+pyjwt>=2.0.0
+passlib[bcrypt]>=1.7.0
+python-multipart>=0.0.5
+
+# AI Providers
+openai>=0.27.0
+anthropic>=0.21.0
+boto3>=1.26.0  # For AWS Bedrock
+
+# HTTP Client & WebSockets
+httpx>=0.23.0
+aiohttp>=3.8.0
+
+# REAL HYPERLIQUID SDK INTEGRATION
+hyperliquid-python-sdk>=0.18.0  # Main Hyperliquid SDK (latest available)
+eth-account>=0.10.0  # Wallet management and EIP-712 signing
+websocket-client>=1.5.1  # WebSocket for real-time data
+msgpack>=1.0.5  # Binary serialization for WebSocket
+requests>=2.31.0  # HTTP client for SDK
+
+# HYPEREVM INTEGRATION ($30k Transaction Simulator Bounty)
+web3>=6.15.0  # Web3 client for HyperEVM RPC calls
+eth-abi>=4.2.0  # ABI encoding/decoding for precompiles
+
+# GLUEX CROSS-CHAIN INTEGRATION ($7k Bounty)
+aiohttp>=3.9.0  # Async HTTP client for GlueX API
+aiofiles>=23.2.0  # Async file operations
+
+# Monitoring & Logging
+structlog>=23.0.0
+
+# Environment & Configuration
+python-dotenv>=1.0.0
+pydantic-settings>=2.0.0
+
+# Utilities
+greenlet>=3.0.0
+
+# Development Tools
+pytest>=7.4.0
+pytest-asyncio>=0.21.0

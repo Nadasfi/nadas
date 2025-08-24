@@ -1,0 +1,184 @@
+version: '3.8'
+
+# Production override for docker-compose.yml
+services:
+  # API Service - Production Configuration
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    environment:
+      - ENVIRONMENT=production
+      - WORKERS=4
+    env_file:
+      - .env.production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Celery Worker - Production Scaling
+  celery-worker:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '0.8'
+          memory: 800M
+        reservations:
+          cpus: '0.4'
+          memory: 400M
+    environment:
+      - ENVIRONMENT=production
+      - CELERY_CONCURRENCY=6
+    env_file:
+      - .env.production
+    command: celery -A celery_app worker --loglevel=warning --concurrency=6 --max-tasks-per-child=1000
+
+  # Database - Production Configuration
+  db:
+    environment:
+      POSTGRES_DB: nadas_production
+      POSTGRES_USER: nadas_prod
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+    command: |
+      postgres
+      -c shared_preload_libraries=pg_stat_statements
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  # Redis - Production Configuration
+  redis:
+    command: |
+      redis-server
+      --appendonly yes
+      --maxmemory 1gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.2'
+          memory: 512M
+
+  # Nginx - Production SSL
+  nginx:
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./static:/var/www/static:ro
+      - ./media:/var/www/media:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # Log Aggregation (Production)
+  fluentd:
+    image: fluent/fluentd:v1.16-debian-1
+    container_name: nadas-fluentd
+    restart: unless-stopped
+    volumes:
+      - ./logging/fluentd.conf:/fluentd/etc/fluent.conf:ro
+      - ./logs:/var/log/nadas
+    ports:
+      - "24224:24224"
+    networks:
+      - nadas-network
+    profiles:
+      - production
+
+  # Security Scanner (Production)
+  security-scanner:
+    image: aquasec/trivy:latest
+    container_name: nadas-security-scanner
+    restart: "no"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - trivy-cache:/root/.cache/trivy
+    command: |
+      sh -c "
+        trivy image --exit-code 1 --severity HIGH,CRITICAL nadas-api:latest &&
+        trivy fs --exit-code 1 --severity HIGH,CRITICAL /app
+      "
+    networks:
+      - nadas-network
+    profiles:
+      - security
+
+  # Backup Service (Production)
+  backup:
+    image: postgres:15-alpine
+    container_name: nadas-backup
+    restart: "no"
+    environment:
+      PGPASSWORD: ${DATABASE_PASSWORD}
+    volumes:
+      - ./backups:/backups
+      - backup-scripts:/scripts
+    command: |
+      sh -c "
+        pg_dump -h db -U nadas_prod nadas_production > /backups/nadas_$(date +%Y%m%d_%H%M%S).sql &&
+        find /backups -name '*.sql' -mtime +30 -delete
+      "
+    depends_on:
+      - db
+    networks:
+      - nadas-network
+    profiles:
+      - backup
+
+volumes:
+  trivy-cache:
+    driver: local
+  backup-scripts:
+    driver: local
+
+# Production network with custom DNS
+networks:
+  nadas-network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "false"
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1

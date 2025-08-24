@@ -1,0 +1,3 @@
+"""
+Nadas.fi Backend Application
+"""
