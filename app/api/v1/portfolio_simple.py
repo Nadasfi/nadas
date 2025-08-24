@@ -5,7 +5,7 @@ Simple Portfolio API - Basic endpoints for portfolio management
 from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime
 
-from app.api.v1.auth import get_current_user
+from app.core.dependencies import get_optional_user_address
 from app.services.portfolio_service_simple import get_portfolio_summary
 from app.adapters.hyperliquid import get_hyperliquid_adapter
 from app.core.logging import get_logger
@@ -15,10 +15,12 @@ router = APIRouter()
 
 
 @router.get("/overview")
-async def portfolio_overview(current_user: dict = Depends(get_current_user)):
+async def portfolio_overview(user_address: str = Depends(get_optional_user_address)):
     """Get complete portfolio overview from Hyperliquid mainnet"""
     try:
-        user_address = current_user["wallet_address"]
+        # Use user's address if authenticated, otherwise use default demo address
+        if not user_address:
+            user_address = "0x8dF3e4806A3320D2642b1F2835ADDA1A40719c4E"  # Demo address
         
         # Get Hyperliquid adapter (use mainnet)
         adapter = get_hyperliquid_adapter(use_mainnet=True)
@@ -77,7 +79,7 @@ async def portfolio_overview(current_user: dict = Depends(get_current_user)):
         
     except Exception as e:
         logger.error("Error getting portfolio overview from Hyperliquid", 
-                    wallet_address=current_user.get("wallet_address"),
+                    wallet_address=user_address,
                     error=str(e))
         
         # Return mock data if Hyperliquid is unavailable (for development)

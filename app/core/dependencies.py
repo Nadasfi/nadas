@@ -28,6 +28,10 @@ async def get_current_user_address(
         )
     
     try:
+        # TEMPORARY: Demo token support
+        if credentials.credentials == "demo-access-token":
+            return "0x8dF3e4806A3320D2642b1F2835ADDA1A40719c4E"
+            
         # Decode JWT token
         payload = jwt.decode(
             credentials.credentials,
@@ -69,6 +73,10 @@ async def get_optional_user_address(
     
     if not credentials:
         return None
+    
+    # TEMPORARY: Demo token support
+    if credentials.credentials == "demo-access-token":
+        return "0x8dF3e4806A3320D2642b1F2835ADDA1A40719c4E"
         
     try:
         return await get_current_user_address(credentials)

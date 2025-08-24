@@ -114,6 +114,7 @@ class LiquidLabsAdapter:
         
         # HyperEVM RPC configuration
         self.hyperevm_rpc_url = HYPEREVM_RPC_URL
+        self.hyperevm_mainnet_rpc_url = getattr(settings, 'HYPEREVM_MAINNET_RPC', 'https://api.hyperliquid.xyz/evm')
         self.chain_id = HYPEREVM_CHAIN_ID
         
         # Session management with retry and rate limiting

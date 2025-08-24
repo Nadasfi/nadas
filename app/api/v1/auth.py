@@ -10,6 +10,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 import httpx
 import json
+import asyncio
+from collections import defaultdict, deque
 
 from app.core.config import settings
 from app.core.security import create_access_token, create_refresh_token, verify_token
@@ -22,11 +24,42 @@ logger = get_logger(__name__)
 router = APIRouter()
 security = HTTPBearer()
 
+# Rate limiting for Privy API calls  
+_privy_call_times = deque()
+_privy_rate_limit = 10  # Max 10 calls per minute
+_privy_rate_window = 60  # 60 seconds
+
 PRIVY_API_BASE_URL = "https://auth.privy.io"
 
 
 async def verify_privy_token(privy_access_token: str) -> Dict[str, Any]:
     """Verify Privy access token with Privy API"""
+    # Rate limiting check
+    now = datetime.utcnow().timestamp()
+    
+    # Remove old entries outside the window
+    while _privy_call_times and _privy_call_times[0] < now - _privy_rate_window:
+        _privy_call_times.popleft()
+    
+    # Check if we're at rate limit
+    if len(_privy_call_times) >= _privy_rate_limit:
+        logger.warning("Privy API rate limit reached, waiting...")
+        await asyncio.sleep(5)  # Wait 5 seconds
+        
+        # Clean up old entries again
+        while _privy_call_times and _privy_call_times[0] < now - _privy_rate_window:
+            _privy_call_times.popleft()
+            
+        # If still at limit, reject
+        if len(_privy_call_times) >= _privy_rate_limit:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many authentication requests. Please wait."
+            )
+    
+    # Record this call
+    _privy_call_times.append(now)
+    
     try:
         async with httpx.AsyncClient() as client:
             # Privy token verification endpoint
@@ -166,13 +199,15 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     """Dependency to get current authenticated user"""
     token = credentials.credentials
     
-    # Demo mode support
+    # TEMPORARY: Demo token support to stop authentication loop
     if token == "demo-access-token":
         return {
-            "wallet_address": "0x1234567890123456789012345678901234567890",
+            "wallet_address": "0x8dF3e4806A3320D2642b1F2835ADDA1A40719c4E",
             "email": "demo@nadas.fi",
+            "privy_user_id": "demo-user"
         }
     
+    # Verify JWT token
     payload = verify_token(token, "access")
     
     if payload is None:

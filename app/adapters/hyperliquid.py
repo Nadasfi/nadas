@@ -168,8 +168,10 @@ class HyperliquidAdapter:
         else:
             self.base_url = settings.HYPERLIQUID_TESTNET_URL
         
-        # Initialize Info API (read-only operations only)
-        self.info = Info(self.base_url, skip_ws=False)
+        # Initialize Info API with lazy loading to avoid rate limits
+        self.info = None
+        self._base_url = self.base_url
+        self._info_initialized = False
         
         # NO Exchange API - trading is done client-side for security
         self.exchange = None
@@ -189,11 +191,27 @@ class HyperliquidAdapter:
                    base_url=self.base_url,
                    evm_rpc=self.evm_rpc_url,
                    security_mode="client_side_trading")
+    
+    def _ensure_info_client(self):
+        """Lazy initialization of Info client with rate limiting protection"""
+        if not self._info_initialized:
+            try:
+                import time
+                # Add small delay to avoid immediate rate limiting
+                time.sleep(0.1)
+                self.info = Info(self._base_url, skip_ws=True)  # Skip WebSocket to reduce load
+                self._info_initialized = True
+                logger.info("Info client initialized successfully", base_url=self._base_url)
+            except Exception as e:
+                logger.error("Failed to initialize Info client", error=str(e))
+                # Re-raise the error but with more context
+                raise Exception(f"Hyperliquid Info client initialization failed: {str(e)}")
+        return self.info
 
     async def _load_symbol_mappings(self) -> None:
         """Load asset ID to symbol mappings"""
         try:
-            meta = self.info.meta()
+            meta = self._ensure_info_client().meta()
             
             for asset in meta.get("universe", []):
                 asset_id = asset.get("name")  # This might be the asset name
@@ -216,7 +234,7 @@ class HyperliquidAdapter:
             try:
                 await self._load_symbol_mappings()
                 
-                user_state = self.info.user_state(address)
+                user_state = self._ensure_info_client().user_state(address)
                 positions = []
                 
                 if user_state and 'assetPositions' in user_state:
@@ -242,7 +260,7 @@ class HyperliquidAdapter:
         """Get spot token balances for a user"""
         async with track_errors("hyperliquid_adapter", {"method": "get_spot_balances", "address": address}):
             try:
-                spot_state = self.info.spot_user_state(address)
+                spot_state = self._ensure_info_client().spot_user_state(address)
                 balances = []
                 
                 if spot_state and 'balances' in spot_state:
@@ -261,7 +279,7 @@ class HyperliquidAdapter:
     async def get_account_value(self, address: str) -> Dict[str, float]:
         """Calculate total account equity and margin info"""
         try:
-            user_state = self.info.user_state(address)
+            user_state = self._ensure_info_client().user_state(address)
             
             if not user_state:
                 return {"total_equity": 0.0, "margin_used": 0.0, "available_margin": 0.0}
@@ -320,7 +338,7 @@ class HyperliquidAdapter:
     async def get_all_mid_prices(self) -> Dict[str, float]:
         """Get mid prices for all assets"""
         try:
-            all_mids = self.info.all_mids()
+            all_mids = self._ensure_info_client().all_mids()
             
             # Convert string prices to floats
             mid_prices = {}
@@ -429,7 +447,7 @@ class HyperliquidAdapter:
     async def get_user_fills(self, address: str) -> List[Dict[str, Any]]:
         """Get user trade fills (transaction history)"""
         try:
-            fills = self.info.user_fills(address)
+            fills = self._ensure_info_client().user_fills(address)
             logger.info("Fetched user fills", address=address, count=len(fills))
             return fills
             
@@ -440,7 +458,7 @@ class HyperliquidAdapter:
     async def get_open_orders(self, address: str) -> List[Dict[str, Any]]:
         """Get open orders for user"""
         try:
-            orders = self.info.open_orders(address)
+            orders = self._ensure_info_client().open_orders(address)
             logger.info("Fetched open orders", address=address, count=len(orders))
             return orders
             
@@ -689,7 +707,8 @@ class HyperliquidAdapter:
         """Close WebSocket connections and cleanup"""
         try:
             if hasattr(self.info, 'disconnect_websocket'):
-                self.info.disconnect_websocket()
+                if self.info:
+                    self.info.disconnect_websocket()
             logger.info("Hyperliquid adapter closed")
             
         except Exception as e:

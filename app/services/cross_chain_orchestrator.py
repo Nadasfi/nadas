@@ -122,7 +122,7 @@ class CrossChainOrchestrator:
             self.lifi_adapter = get_lifi_adapter()
             self.gluex_adapter = get_gluex_adapter()
             self.liquid_labs_adapter = get_liquid_labs_adapter()
-            self.automation_engine = get_automation_engine()
+            self.automation_engine = None  # TODO: Implement automation engine integration
             self.websocket_manager = get_websocket_manager()
             logger.info("Cross-chain orchestrator adapters initialized")
         except Exception as e:

@@ -88,10 +88,24 @@ class HyperliquidClient:
         if private_key:
             self._initialize_trading(private_key)
         
-        # Initialize adapter for read operations
-        self.adapter = HyperliquidAdapter(use_mainnet=not use_testnet)
+        # Initialize adapter for read operations with lazy loading
+        self.adapter = None
+        self._use_mainnet = not use_testnet
+        self._adapter_initialized = False
         
         logger.info(f"HyperliquidClient initialized - trading_enabled: {self.exchange is not None}, network: {'testnet' if use_testnet else 'mainnet'}")
+    
+    def _ensure_adapter(self):
+        """Lazy initialization of HyperliquidAdapter"""
+        if not self._adapter_initialized:
+            try:
+                self.adapter = HyperliquidAdapter(use_mainnet=self._use_mainnet)
+                self._adapter_initialized = True
+                logger.info("HyperliquidAdapter initialized successfully")
+            except Exception as e:
+                logger.error("Failed to initialize HyperliquidAdapter", error=str(e))
+                # Don't re-raise here, let the calling method handle it
+        return self.adapter
     
     def _initialize_trading(self, private_key: str):
         """Initialize trading capabilities"""
@@ -281,7 +295,7 @@ class HyperliquidClient:
             if not wallet_addr:
                 return []
             
-            positions = await self.adapter.get_user_positions(wallet_addr)
+            positions = await self._ensure_adapter().get_user_positions(wallet_addr)
             
             position_info = []
             for pos in positions:
@@ -381,7 +395,7 @@ class HyperliquidClient:
             if not wallet_addr:
                 return []
             
-            orders = await self.adapter.get_open_orders(wallet_addr)
+            orders = await self._ensure_adapter().get_open_orders(wallet_addr)
             return orders
             
         except Exception as e:
@@ -395,7 +409,7 @@ class HyperliquidClient:
             if not wallet_addr:
                 return []
             
-            fills = await self.adapter.get_user_fills(wallet_addr)
+            fills = await self._ensure_adapter().get_user_fills(wallet_addr)
             return fills[:limit]
             
         except Exception as e:
@@ -409,7 +423,7 @@ class HyperliquidClient:
             if not wallet_addr:
                 return {}
             
-            return await self.adapter.get_account_summary(wallet_addr)
+            return await self._ensure_adapter().get_account_summary(wallet_addr)
             
         except Exception as e:
             logger.error("Failed to get account summary", error=str(e))
@@ -418,7 +432,7 @@ class HyperliquidClient:
     async def get_current_price(self, symbol: str) -> Optional[float]:
         """Get current price for a symbol"""
         try:
-            prices = await self.adapter.get_all_mid_prices()
+            prices = await self._ensure_adapter().get_all_mid_prices()
             return prices.get(symbol)
             
         except Exception as e:
@@ -486,7 +500,7 @@ class HyperliquidClient:
         """Health check for the client"""
         try:
             # Test API connectivity
-            prices = await self.adapter.get_all_mid_prices()
+            prices = await self._ensure_adapter().get_all_mid_prices()
             api_healthy = len(prices) > 0
             
             # Test trading if enabled

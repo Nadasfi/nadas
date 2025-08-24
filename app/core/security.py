@@ -44,7 +44,7 @@ def verify_token(token: str, token_type: str = "access") -> Optional[Dict[str, A
         return payload
     except jwt.ExpiredSignatureError:
         return None
-    except jwt.JWTError:
+    except jwt.InvalidTokenError:
         return None
 
 
