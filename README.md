@@ -1,10 +1,10 @@
-# Nadas.fi Backend
+# Nadas
 
 Hyperliquid-native DeFi Automation Platform backend service. This platform is designed for AI-powered trading automation, cross-chain operations, and portfolio management.
 
 ## Features
 
-- **AI-Powered Trading**: Automated strategy generation with OpenAI, Claude 3.5 Sonnet, and AWS Bedrock integration
+- **AI-Powered Trading**: Automated strategy generation with Claude 3.5 Sonnet and AWS Bedrock integration
 - **Hyperliquid Integration**: Native Python SDK with real trading capabilities, HyperEVM precompiles support, and EIP-712 transaction signing
 - **Cross-Chain Orchestrator**: AI-powered cross-chain strategy management with portfolio aggregation
 - **Portfolio Management**: Real-time position tracking, P&L calculations, and risk management
@@ -39,19 +39,83 @@ Hyperliquid-native DeFi Automation Platform backend service. This platform is de
 
 ## Architecture
 
-```
-backend/
-├── app/
-│   ├── api/v1/           # API endpoints for all services
-│   ├── core/             # Core configuration and utilities
-│   ├── models/           # Database models and relationships
-│   ├── schemas/          # Pydantic schemas for validation
-│   ├── services/         # Business logic and AI services
-│   ├── adapters/         # External protocol integrations
-│   └── workers/          # Celery background tasks
-├── alembic/              # Database migrations
-├── tests/                # Comprehensive test suite
-└── docker/               # Production-ready Docker configuration
+### Service Architecture
+```mermaid
+graph TB
+    subgraph "Frontend Layer"
+        UI[Next.js 15 Frontend]
+        WS[WebSocket Client]
+    end
+    
+    subgraph "API Gateway"
+        FastAPI[FastAPI Application]
+        Auth[JWT Authentication]
+        RateLimit[Rate Limiting]
+    end
+    
+    subgraph "Business Logic Layer"
+        AI[AI Services]
+        Trading[Trading Service]
+        Portfolio[Portfolio Service]
+        CrossChain[Cross-Chain Service]
+        Risk[Risk Management]
+        Notify[Notification Service]
+    end
+    
+    subgraph "Integration Layer"
+        HL[Hyperliquid SDK]
+        GlueX[GlueX Router]
+        LiFi[LI.FI Bridge]
+        LiquidLabs[Liquid Labs DEX]
+        Privy[Privy Auth]
+    end
+    
+    subgraph "Data Layer"
+        PostgreSQL[(PostgreSQL)]
+        Redis[(Redis Cache)]
+        Celery[Background Tasks]
+    end
+    
+    subgraph "External Services"
+        OpenAI[OpenAI GPT-4]
+        Claude[Claude 3.5]
+        Bedrock[AWS Bedrock]
+        HLNetwork[Hyperliquid Network]
+        Chains[Multi-Chain Networks]
+    end
+
+    UI --> FastAPI
+    WS --> FastAPI
+    FastAPI --> Auth
+    Auth --> RateLimit
+    RateLimit --> AI
+    RateLimit --> Trading
+    RateLimit --> Portfolio
+    RateLimit --> CrossChain
+    
+    AI --> OpenAI
+    AI --> Claude
+    AI --> Bedrock
+    
+    Trading --> HL
+    Trading --> Risk
+    HL --> HLNetwork
+    
+    CrossChain --> GlueX
+    CrossChain --> LiFi
+    CrossChain --> LiquidLabs
+    GlueX --> Chains
+    LiFi --> Chains
+    LiquidLabs --> Chains
+    
+    Portfolio --> PostgreSQL
+    Trading --> PostgreSQL
+    Risk --> Redis
+    
+    FastAPI --> Celery
+    Celery --> Notify
+    
+    Auth --> Privy
 ```
 
 ## Technologies
@@ -133,6 +197,74 @@ docker-compose up -d
 
 # Production
 docker-compose -f docker-compose.production.yml up -d
+```
+
+## System Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant API
+    participant AI as AI Services
+    participant HL as Hyperliquid
+    participant CC as Cross-Chain
+    participant DB as Database
+    participant Redis
+    participant Celery as Background Tasks
+
+    %% User Authentication & Setup
+    User->>Frontend: Connect Wallet (Privy)
+    Frontend->>API: Authenticate with JWT
+    API->>DB: Store/Validate User
+    API->>Frontend: Return Auth Token
+
+    %% Portfolio & Market Data
+    Frontend->>API: Request Portfolio Data
+    API->>HL: Get Positions via SDK
+    API->>CC: Get Cross-Chain Balances (GlueX/LI.FI)
+    HL->>API: Real-time WebSocket Data
+    API->>DB: Cache Portfolio State
+    API->>Frontend: Aggregated Portfolio
+
+    %% AI Strategy Generation
+    User->>Frontend: Request Trading Strategy
+    Frontend->>API: Strategy Generation Request
+    API->>AI: Analyze Market (OpenAI/Claude/Bedrock)
+    AI->>API: Generated Strategy
+    API->>DB: Store Strategy
+    API->>Frontend: Strategy Recommendations
+
+    %% Trading Execution
+    User->>Frontend: Execute Trade/Strategy
+    Frontend->>API: Trading Request
+    API->>HL: Place Orders (Python SDK)
+    API->>CC: Cross-chain Swaps (Liquid Labs DEX)
+    HL->>API: Order Status Updates
+    API->>Redis: Cache Trade Data
+    API->>Celery: Queue Background Tasks
+    Celery->>API: Monitor Positions
+    API->>Frontend: Trade Confirmations
+
+    %% Automation & Monitoring
+    Celery->>HL: Monitor Positions
+    Celery->>DB: Update P&L Calculations
+    Celery->>API: Risk Management Checks
+    API->>User: Notifications (Alerts/Margin Calls)
+    
+    %% Cross-Chain Operations
+    User->>Frontend: Bridge/Deposit Request
+    Frontend->>API: Cross-chain Operation
+    API->>CC: Route via GlueX/LI.FI
+    CC->>API: Bridge Status
+    API->>DB: Update Cross-chain State
+    API->>Frontend: Operation Status
+
+    %% Real-time Updates
+    HL-->>API: WebSocket Market Data
+    API-->>Frontend: Real-time Updates
+    Celery-->>API: Background Task Results
+    API-->>Frontend: Portfolio Updates
 ```
 
 ## API Documentation
