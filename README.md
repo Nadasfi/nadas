@@ -2,7 +2,7 @@
 
 Hyperliquid-native DeFi Automation Platform backend service. This platform is designed for AI-powered trading automation, cross-chain operations, and portfolio management.
 
-## Features
+## Features [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Nadasfi/nadas)
 
 - **AI-Powered Trading**: Automated strategy generation with Claude 3.5 Sonnet and AWS Bedrock integration
 - **Hyperliquid Integration**: Native Python SDK with real trading capabilities, HyperEVM precompiles support, and EIP-712 transaction signing
@@ -266,9 +266,3 @@ sequenceDiagram
     Celery-->>API: Background Task Results
     API-->>Frontend: Portfolio Updates
 ```
-
-## API Documentation
-
-- **Swagger UI**: `http://localhost:8000/docs`
-- **ReDoc**: `http://localhost:8000/redoc`
-- **OpenAPI Spec**: `http://localhost:8000/openapi.json`
